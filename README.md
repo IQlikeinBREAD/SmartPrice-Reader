@@ -9,6 +9,9 @@ pip install paddleocr
 ```
 
 ## Integracja backend (Python) z API NBP 
-'''
-pip install Fastapi lub restapi
-'''
+```
+pip install Fastapi 
+
+lub 
+pip install restapi
+```
