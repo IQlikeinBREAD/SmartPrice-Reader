@@ -1,0 +1,2 @@
+model_path: "models/yolo/yolo11n.pt" #sciezka do yolo11
+conf_treshold: 0.5
