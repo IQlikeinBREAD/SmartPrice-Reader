@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+ultralytics
+paddlepaddle
+paddleocr
+requests
+pillow
+numpy
