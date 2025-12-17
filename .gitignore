@@ -9,3 +9,4 @@ data/processed/
 data/raw/
 .paddleocr/
 .vscode/
+*.idea
