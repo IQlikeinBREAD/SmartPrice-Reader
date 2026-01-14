@@ -12,7 +12,7 @@ class PriceReader:
         Inicjalizacja PaddleOCR.
         use_angle_cls=True pozwala czytać tekst obrócony (np. o 90 stopni).
         """
-        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
+        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang)
 
     def read_text(self, image: np.ndarray) -> str:
         """
