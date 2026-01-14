@@ -30,3 +30,4 @@ class NBPService:
         if rate:
             return round(amount * rate, 2)
         return None
+

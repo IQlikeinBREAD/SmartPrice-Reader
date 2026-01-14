@@ -1,10 +1,13 @@
-# main.py (fragment)
+from fastapi import FastAPI, File, UploadFile
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
 from utils.image_processing import bytes_to_cv2
 
+# aplikacja FastAPI
+app = FastAPI()
+
 # Inicjalizacja usług (Singleton pattern - ładowane raz przy starcie)
-detector = PriceTagDetector(model_path="yolo11n.pt")  # lub twoja ścieżka
+detector = PriceTagDetector(model_path="/models/yolo11n.pt")  # lub twoja ścieżka
 reader = PriceReader()
 
 
