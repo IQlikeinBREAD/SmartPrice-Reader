@@ -1,4 +1,5 @@
 # main.py (fragment)
+import fastapi
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
 from utils.image_processing import bytes_to_cv2
@@ -6,7 +7,7 @@ from utils.image_processing import bytes_to_cv2
 # Inicjalizacja usług (Singleton pattern - ładowane raz przy starcie)
 detector = PriceTagDetector(model_path="yolo11n.pt")  # lub twoja ścieżka
 reader = PriceReader()
-
+app = fastapi.FastAPI()
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...)):
@@ -41,4 +42,20 @@ async def scan(file: UploadFile = File(...)):
         })
 
     # Tu dodajesz logikę parsowania walut i NBP...
+
+    def przeliczanie_walut(text, docelowa_waluta):
+        # Przykładowa implementacja - zastąp rzeczywistą logiką
+       
+        waluty = ["USD", "EUR", "GBP", "CHF"]
+        https://api.nbp.pl/api/exchangerates/rates/a/chf/?format=json
+        for linia in text.split("\n"):
+            for waluta, kurs in kursy.items():
+                if waluta in linia:
+                    try:
+                        kwota = float(''.join(filter(lambda x: x.isdigit() or x == '.', linia)))
+                        przeliczona_kwota = kwota * kurs
+                        return f"{kwota} {waluta} to około {przeliczona_kwota:.2f} PLN"
+                    except ValueError:
+                        continue
+        return "Nie znaleziono kwot do przeliczenia."
     return {"results": results}

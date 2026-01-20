@@ -5,6 +5,7 @@ import io
 from PIL import Image
 import database
 from database import check_db_connection, create_tables
+from services.currency import NBPService
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -106,7 +107,7 @@ class OCRApp(ctk.CTk):
         self.currency_dropdown = ctk.CTkOptionMenu(
             currency_frame,
             variable=self.currency_var,
-            values=[f"Waluta {i}" for i in range(1, 11)]
+            values=["PLN", "GBP", "EUR", "USD", "CHF"]
         )
         self.currency_dropdown.grid(row=0, column=0, padx=(0, 10), sticky="ew")
 
@@ -135,7 +136,40 @@ class OCRApp(ctk.CTk):
     def convert_currency(self):
         selected_currency = self.currency_var.get()
         self.text_results.delete("1.0", "end")
-        self.text_results.insert("end", f"Wybrana waluta: {selected_currency}")
+        
+        # Pobierz odczytaną cenę z GUI (przykładowa wartość - należy zastąpić rzeczywistą logiką)
+        # Zakładamy, że cena jest zapisana w self.detected_price lub można ją pobrać z OCR
+        # Na potrzeby demonstracji używam przykładowej wartości
+        try:
+            # Przykładowa cena w PLN - w prawdziwej implementacji pobierz z OCR
+            price_pln = 99.99  # TODO: Zastąp rzeczywistą odczytaną ceną
+            
+            self.text_results.insert("end", f"Odczytana cena: {price_pln} PLN\n\n")
+            self.text_results.insert("end", "Przeliczanie na inne waluty...\n")
+            self.text_results.insert("end", "-" * 40 + "\n\n")
+            
+            # Przelicz na wszystkie waluty
+            converted = NBPService.convert_to_multiple_currencies(price_pln)
+            
+            for currency, amount in converted.items():
+                if isinstance(amount, (int, float)):
+                    self.text_results.insert("end", f"{currency}: {amount:.2f}\n")
+                else:
+                    self.text_results.insert("end", f"{currency}: {amount}\n")
+            
+            # Wyróżnij wybraną walutę
+            if selected_currency != "PLN":
+                self.text_results.insert("end", "\n" + "=" * 40 + "\n")
+                self.text_results.insert("end", f"Wybrana waluta: {selected_currency}\n")
+                if selected_currency in converted:
+                    amount = converted[selected_currency]
+                    if isinstance(amount, (int, float)):
+                        self.text_results.insert("end", f"Cena: {amount:.2f} {selected_currency}\n")
+                    else:
+                        self.text_results.insert("end", f"Cena: {amount}\n")
+                        
+        except Exception as e:
+            self.text_results.insert("end", f"Błąd podczas przeliczania: {str(e)}\n")
 
     def show_history_window(self):
         result = database.get_last_scan()

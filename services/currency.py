@@ -30,3 +30,39 @@ class NBPService:
         if rate:
             return round(amount * rate, 2)
         return None
+
+    @staticmethod
+    def convert_pln_to_currency(amount_pln: float, target_currency: str) -> float:
+        """
+        Przelicza kwotę w PLN na docelową walutę (GBP, EUR, USD, CHF).
+        """
+        code = target_currency.upper()
+        if code == "PLN":
+            return amount_pln
+
+        rate = NBPService.get_exchange_rate(code)
+        if rate:
+            # Kurs z NBP to ile PLN za 1 jednostkę waluty obcej
+            # Więc aby przeliczyć PLN na walutę obcą: PLN / kurs
+            return round(amount_pln / rate, 2)
+        return None
+
+    @staticmethod
+    def convert_to_multiple_currencies(amount_pln: float, currencies: list = None) -> dict:
+        """
+        Przelicza kwotę w PLN na wiele walut jednocześnie.
+        Domyślnie przelicza na GBP, EUR, USD, CHF.
+        """
+        if currencies is None:
+            currencies = ["GBP", "EUR", "USD", "CHF"]
+
+        results = {"PLN": amount_pln}
+
+        for currency in currencies:
+            converted = NBPService.convert_pln_to_currency(amount_pln, currency)
+            if converted is not None:
+                results[currency] = converted
+            else:
+                results[currency] = "Błąd"
+
+        return results
