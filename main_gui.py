@@ -107,7 +107,7 @@ class OCRApp(ctk.CTk):
         self.currency_dropdown = ctk.CTkOptionMenu(
             currency_frame,
             variable=self.currency_var,
-            values=["PLN", "GBP", "EUR", "USD", "CHF"]
+            values=["GBP", "EUR", "USD", "CHF"]
         )
         self.currency_dropdown.grid(row=0, column=0, padx=(0, 10), sticky="ew")
 

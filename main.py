@@ -46,18 +46,20 @@ async def scan(file: UploadFile = File(...)):
 
     # Tu dodajesz logikę parsowania walut i NBP...
 
-    async def przeliczanie_walut(text, docelowa_waluta="PLN"):
+    def przeliczanie_walut(text, docelowa_waluta=None):
         """
         Funkcja przelicza waluty na podstawie aktualnych kursów z API NBP.
+        - Jeśli znajdzie walutę obcą → przelicza na PLN
+        - Jeśli znajdzie PLN i podano docelową walutę → przelicza PLN na tę walutę
         """
         waluty = ["USD", "EUR", "GBP", "CHF"]
         kursy = {}
         
         # Pobierz aktualne kursy z API NBP
-        async with httpx.AsyncClient() as client:
+        with httpx.Client() as client:
             for waluta in waluty:
                 try:
-                    response = await client.get(
+                    response = client.get(
                         f"https://api.nbp.pl/api/exchangerates/rates/a/{waluta.lower()}/?format=json"
                     )
                     if response.status_code == 200:
@@ -67,28 +69,32 @@ async def scan(file: UploadFile = File(...)):
                     print(f"Błąd pobierania kursu {waluta}: {e}")
                     kursy[waluta] = None
         
+        
         # Szukaj walut w tekście i przelicz
         for linia in text.split("\n"):
-            for waluta, kurs in kursy.items():
-                if kurs and waluta in linia:
-                    try:
-                        # Wyciągnij liczbę z linii
-                        liczby = re.findall(r'\d+\.?\d*', linia)
-                        if liczby:
-                            kwota = float(liczby[0])
-                            przeliczona_kwota = kwota * kurs
-                            return {
-                                "original": f"{kwota} {waluta}",
-                                "converted": f"{przeliczona_kwota:.2f} {docelowa_waluta}",
-                                "rate": kurs
-                            }
-                    except ValueError:
-                        continue
+            liczby = re.findall(r'\d+\.?\d*', linia)
+            if not liczby:
+                continue
+            
+            kwota = float(liczby[0])
+            
+            
+            if "PLN" in linia and docelowa_waluta and docelowa_waluta in kursy:
+                kurs = kursy[docelowa_waluta]
+                if kurs:
+                    przeliczona_kwota = kwota / kurs
+                    return {
+                        "original": f"{kwota} PLN",
+                        "converted": f"{przeliczona_kwota:.2f} {docelowa_waluta}",
+                        "rate": kurs,
+                        "direction": f"PLN → {docelowa_waluta}"
+                    }
+        
         return None
     
     # Wywołaj przeliczanie walut dla każdego wyniku
     for result in results:
-        conversion = await przeliczanie_walut(result["text"])
+        conversion = przeliczanie_walut(result["text"])
         if conversion:
             result["currency_conversion"] = conversion
     
