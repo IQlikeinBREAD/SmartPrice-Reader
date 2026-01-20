@@ -1,2 +1,2 @@
-model_path: "models/yolo/yolo11n.pt" #sciezka do yolo11
-conf_treshold: 0.5
+model_path: "models/yolo/custom_price_v1.pt"
+conf_treshold: 0.6

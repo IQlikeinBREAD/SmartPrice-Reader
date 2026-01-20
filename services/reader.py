@@ -1,44 +1,21 @@
-from paddleocr import PaddleOCR
-import numpy as np
+import easyocr
 import logging
 
-# Wyłączamy logi systemowe PaddleOCR, żeby nie śmieciły w konsoli
-logging.getLogger("ppocr").setLevel(logging.ERROR)
-
+logging.getLogger("easyocr").setLevel(logging.ERROR)
 
 class PriceReader:
-    def __init__(self, lang: str = 'en'):
-        """
-        Inicjalizacja PaddleOCR.
-        use_angle_cls=True pozwala czytać tekst obrócony (np. o 90 stopni).
-        """
-        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
+    def __init__(self, use_gpu=True):
+        self.reader = easyocr.Reader(['pl', 'en'], gpu=use_gpu)
 
-    def read_text(self, image: np.ndarray) -> str:
-        """
-        Wykonuje OCR na podanym obrazie (lub jego wycinku).
-        Zwraca połączony ciąg znaków.
-        """
-        if image is None or image.size == 0:
-            return ""
+    def read_text(self, image_crop):
+        if image_crop is None or image_crop.size == 0:
+            return []
+        
+        results = self.reader.readtext(image_crop)
 
-        # Wykonanie OCR
-        # cls=True włącza klasyfikację kąta obrotu
-        result = self.ocr.ocr(image, cls=True)
-
-        if not result or result[0] is None:
-            return ""
-
-        detected_lines = []
-        # Struktura wyniku PaddleOCR: [[[[x1,y1],...], ("text", conf)], ...]
-        for line in result[0]:
-            text = line[1][0]
-            confidence = line[1][1]
-
-            # Możemy dodać minimalny próg pewności dla samego tekstu
-            if confidence > 0.5:
-                detected_lines.append(text)
-
-        # Łączymy linie tekstu spacją
-        full_text = " ".join(detected_lines)
-        return full_text.strip()
+        detected_texts = []
+        for(bbox, text, prob) in results:
+            if prob > 0.3:
+                detected_texts.append(text)
+        
+        return detected_texts

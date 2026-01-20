@@ -2,8 +2,9 @@ fastapi
 uvicorn
 python-multipart
 ultralytics
-paddlepaddle
-paddleocr
+easyocr
 requests
 pillow
 numpy
+customtkinter
+mysql-connector-python

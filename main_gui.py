@@ -6,13 +6,16 @@ from PIL import Image
 import database
 from database import check_db_connection, create_tables
 
+from services.detector import PriceTagDetector
+from services.reader import PriceReader
+from utils.text_utils import clean_price
+
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 
 class OCRApp(ctk.CTk):
     def __init__(self):
-        # Inicjalizacja głównego okna, sprawdzenie bazy i uruchomienie wątku ładowania.
         super().__init__()
 
         self.title("OCR Cenówek - Analizator Ceny")
