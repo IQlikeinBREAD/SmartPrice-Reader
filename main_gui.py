@@ -12,7 +12,6 @@ ctk.set_default_color_theme("blue")
 
 class OCRApp(ctk.CTk):
     def __init__(self):
-        # Inicjalizacja głównego okna, sprawdzenie bazy i uruchomienie wątku ładowania.
         super().__init__()
 
         self.title("OCR Cenówek - Analizator Ceny")
@@ -31,7 +30,6 @@ class OCRApp(ctk.CTk):
         threading.Thread(target=self.initialize_data, daemon=True).start()
 
     def show_loading_screen(self):
-        # Tworzy i wyświetla elementy ekranu powitalnego oraz pasek postępu.
         self.loading_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.loading_frame.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -47,7 +45,6 @@ class OCRApp(ctk.CTk):
         self.progress_bar.set(0)
 
     def initialize_data(self):
-        # Symuluje pobieranie danych i animuje pasek postępu przed wejściem do menu.
         min_duration = 2.0
         steps = 40
         delay = min_duration / steps
@@ -62,17 +59,16 @@ class OCRApp(ctk.CTk):
         self.after(100, self.launch_main_ui)
 
     def launch_main_ui(self):
-        # Usuwa ekran ładowania i buduje docelowy układ aplikacji.
         if hasattr(self, 'loading_frame'):
             self.loading_frame.destroy()
         self.create_layout()
 
     def create_layout(self):
-        # Definiuje siatkę i elementy głównego interfejsu (kamera, panel danych, przyciski).
         self.grid_columnconfigure(0, weight=2)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
+        #Miejsce na kamere
         self.frame_camera_feed = ctk.CTkFrame(self)
         self.frame_camera_feed.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.frame_camera_feed.grid_columnconfigure(0, weight=1)
@@ -87,11 +83,11 @@ class OCRApp(ctk.CTk):
         )
         self.camera_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
+        #Prawy layout
         self.frame_data = ctk.CTkFrame(self)
         self.frame_data.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="nsew")
-        self.frame_data.grid_rowconfigure(1, weight=1)
-        self.frame_data.grid_rowconfigure(2, weight=0)
         self.frame_data.grid_columnconfigure(0, weight=1)
+        self.frame_data.grid_rowconfigure(2, weight=1)
 
         data_label = ctk.CTkLabel(
             self.frame_data,
@@ -100,9 +96,33 @@ class OCRApp(ctk.CTk):
         )
         data_label.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="nw")
 
-        self.text_results = ctk.CTkTextbox(self.frame_data, width=300)
-        self.text_results.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
+        #Lista walut do wyboru
+        self.currency_var = ctk.StringVar(value="Waluta 1")
 
+        currency_frame = ctk.CTkFrame(self.frame_data, fg_color="transparent")
+        currency_frame.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="ew")
+        currency_frame.grid_columnconfigure(0, weight=1)
+
+        self.currency_dropdown = ctk.CTkOptionMenu(
+            currency_frame,
+            variable=self.currency_var,
+            values=[f"Waluta {i}" for i in range(1, 11)]
+        )
+        self.currency_dropdown.grid(row=0, column=0, padx=(0, 10), sticky="ew")
+
+        self.convert_button = ctk.CTkButton(
+            currency_frame,
+            text="Konwertuj",
+            command=self.convert_currency,
+            width=120
+        )
+        self.convert_button.grid(row=0, column=1)
+
+        #Miejsce do wyswietlania wynikow
+        self.text_results = ctk.CTkTextbox(self.frame_data, width=300)
+        self.text_results.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
+
+        #Przycisk ostatniego skanu
         self.btn_history = ctk.CTkButton(
             self.frame_data,
             text="Historia",
@@ -110,13 +130,14 @@ class OCRApp(ctk.CTk):
             font=ctk.CTkFont(size=14, weight="bold"),
             height=40
         )
-        self.btn_history.grid(row=2, column=0, padx=20, pady=(0, 20), sticky="ew")
+        self.btn_history.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="ew")
 
-        #Dodanie testowego pliku
-        #database.add_scan_to_db("Testowy Plik 1", 9.99, "1.jpg")
+    def convert_currency(self):
+        selected_currency = self.currency_var.get()
+        self.text_results.delete("1.0", "end")
+        self.text_results.insert("end", f"Wybrana waluta: {selected_currency}")
 
     def show_history_window(self):
-        # Pobiera dane binarne ostatniego skanu, konwertuje na obraz i wyświetla w nowym oknie.
         result = database.get_last_scan()
 
         if not result:
@@ -141,11 +162,18 @@ class OCRApp(ctk.CTk):
             img_label = ctk.CTkLabel(history_win, image=img_ctk, text="")
             img_label.pack(pady=10)
 
-            name_label = ctk.CTkLabel(history_win, text="Produkt: " + str(product_name), font=("Arial", 16, "bold"))
+            name_label = ctk.CTkLabel(
+                history_win,
+                text="Produkt: " + str(product_name),
+                font=("Arial", 16, "bold")
+            )
             name_label.pack(pady=10)
 
         except Exception as e:
-            error_label = ctk.CTkLabel(history_win, text="Błąd ładowania obrazu:\n" + str(e))
+            error_label = ctk.CTkLabel(
+                history_win,
+                text="Błąd ładowania obrazu:\n" + str(e)
+            )
             error_label.pack(pady=20)
 
 
