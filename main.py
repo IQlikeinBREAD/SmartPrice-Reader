@@ -1,5 +1,6 @@
 # main.py (fragment)
 import fastapi
+from fastapi import UploadFile, File
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
 from utils.image_processing import bytes_to_cv2
@@ -45,9 +46,9 @@ async def scan(file: UploadFile = File(...)):
 
     def przeliczanie_walut(text, docelowa_waluta):
         # Przykładowa implementacja - zastąp rzeczywistą logiką
-       
         waluty = ["USD", "EUR", "GBP", "CHF"]
-        https://api.nbp.pl/api/exchangerates/rates/a/chf/?format=json
+        # URL do API NBP: https://api.nbp.pl/api/exchangerates/rates/a/chf/?format=json
+        kursy = {"USD": 4.0, "EUR": 4.3, "GBP": 5.0, "CHF": 4.5}  # Przykładowe kursy
         for linia in text.split("\n"):
             for waluta, kurs in kursy.items():
                 if waluta in linia:
