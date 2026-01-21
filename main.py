@@ -1,101 +1,128 @@
 # main.py (fragment)
 import fastapi
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, HTTPException
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
-from utils.image_processing import bytes_to_cv2
+from utils.text_utils import clean_price
+import numpy as np
+import cv2
 import httpx
 import re
+from typing import Dict, List, Optional
 
 # Inicjalizacja usług (Singleton pattern - ładowane raz przy starcie)
-detector = PriceTagDetector(model_path="custom_price_v1.pt")  # lub twoja ścieżka
-reader = PriceReader()
+detector = PriceTagDetector(model_path="models/yolo/custom_price_v1.pt")
+reader = PriceReader(use_gpu=False)
 app = fastapi.FastAPI()
+
+CURRENCIES = ["USD", "EUR", "GBP", "CHF"]
+
+
+def _decode_image(image_bytes: bytes):
+    arr = np.frombuffer(image_bytes, dtype=np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise ValueError("Nie udało się odczytać obrazu z przesłanych bajtów")
+    return frame
+
+
+def _normalize_bbox(frame, bbox):
+    height, width = frame.shape[:2]
+    x1, y1, x2, y2 = bbox
+    x1 = max(0, min(x1, width - 1))
+    x2 = max(0, min(x2, width - 1))
+    y1 = max(0, min(y1, height - 1))
+    y2 = max(0, min(y2, height - 1))
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return (x1, y1, x2, y2)
+
+
+def _build_results(frame) -> List[Dict]:
+    detections = detector.detect(frame)
+    if not detections:
+        raw = reader.read_text(frame)
+        return [{
+            "type": "full_frame",
+            "raw_text": raw,
+            "price": clean_price(raw),
+            "confidence": 0.0,
+            "bbox": []
+        }]
+
+    normalized = _normalize_bbox(frame, detections[0])
+    if normalized is None:
+        raw = reader.read_text(frame)
+        return [{
+            "type": "full_frame",
+            "raw_text": raw,
+            "price": clean_price(raw),
+            "confidence": 0.0,
+            "bbox": []
+        }]
+
+    x1, y1, x2, y2 = normalized
+    crop = frame[y1:y2, x1:x2]
+    raw = reader.read_text(crop)
+    return [{
+        "type": "tag_crop",
+        "raw_text": raw,
+        "price": clean_price(raw),
+        "confidence": None,
+        "bbox": [x1, y1, x2, y2]
+    }]
+
+
+def _fetch_exchange_rates() -> Dict[str, Optional[float]]:
+    rates: Dict[str, Optional[float]] = {}
+    with httpx.Client() as client:
+        for currency in CURRENCIES:
+            try:
+                response = client.get(f"https://api.nbp.pl/api/exchangerates/rates/a/{currency.lower()}/?format=json", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    rates[currency] = data["rates"][0]["mid"]
+                else:
+                    rates[currency] = None
+            except Exception as exc:
+                print(f"Błąd pobierania kursu {currency}: {exc}")
+                rates[currency] = None
+    return rates
+
+
+def _parse_currency(text_lines: List[str], target: Optional[str] = None):
+    joined = "\n".join(text_lines)
+    rates = _fetch_exchange_rates()
+
+    for line in joined.split("\n"):
+        numbers = re.findall(r"\d+\.?\d*", line)
+        if not numbers:
+            continue
+        amount = float(numbers[0])
+        if "PLN" in line.upper() and target and target in rates:
+            rate = rates[target]
+            if rate:
+                converted = amount / rate
+                return {
+                    "original": f"{amount} PLN",
+                    "converted": f"{converted:.2f} {target}",
+                    "rate": rate,
+                    "direction": f"PLN → {target}"
+                }
+    return None
+
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...)):
-    # 1. Przetworzenie bajtów na obraz
     image_bytes = await file.read()
-    image = bytes_to_cv2(image_bytes)
+    try:
+        frame = _decode_image(image_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
-    # 2. Detekcja (gdzie jest cena?)
-    detections = detector.detect(image)
-
-    results = []
-
-    # A. Jeśli wykryto etykiety -> czytaj tylko z nich
-    if detections:
-        for item in detections:
-            text = reader.read_text(item["cropped_image"])
-            results.append({
-                "type": "tag_crop",
-                "text": text,
-                "confidence": item["confidence"],
-                "bbox": item["bbox"]
-            })
-
-    # B. Jeśli nic nie wykryto -> czytaj cały obraz (fallback)
-    else:
-        full_text = reader.read_text(image)
-        results.append({
-            "type": "full_image_fallback",
-            "text": full_text,
-            "confidence": 0.0,
-            "bbox": []
-        })
-
-    # Tu dodajesz logikę parsowania walut i NBP...
-
-    def przeliczanie_walut(text, docelowa_waluta=None):
-        """
-        Funkcja przelicza waluty na podstawie aktualnych kursów z API NBP.
-        - Jeśli znajdzie walutę obcą → przelicza na PLN
-        - Jeśli znajdzie PLN i podano docelową walutę → przelicza PLN na tę walutę
-        """
-        waluty = ["USD", "EUR", "GBP", "CHF"]
-        kursy = {}
-        
-        # Pobierz aktualne kursy z API NBP
-        with httpx.Client() as client:
-            for waluta in waluty:
-                try:
-                    response = client.get(
-                        f"https://api.nbp.pl/api/exchangerates/rates/a/{waluta.lower()}/?format=json"
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        kursy[waluta] = data["rates"][0]["mid"]
-                except Exception as e:
-                    print(f"Błąd pobierania kursu {waluta}: {e}")
-                    kursy[waluta] = None
-        
-        
-        # Szukaj walut w tekście i przelicz
-        for linia in text.split("\n"):
-            liczby = re.findall(r'\d+\.?\d*', linia)
-            if not liczby:
-                continue
-            
-            kwota = float(liczby[0])
-            
-            
-            if "PLN" in linia and docelowa_waluta and docelowa_waluta in kursy:
-                kurs = kursy[docelowa_waluta]
-                if kurs:
-                    przeliczona_kwota = kwota / kurs
-                    return {
-                        "original": f"{kwota} PLN",
-                        "converted": f"{przeliczona_kwota:.2f} {docelowa_waluta}",
-                        "rate": kurs,
-                        "direction": f"PLN → {docelowa_waluta}"
-                    }
-        
-        return None
-    
-    # Wywołaj przeliczanie walut dla każdego wyniku
-    for result in results:
-        conversion = przeliczanie_walut(result["text"])
+    results = _build_results(frame)
+    for item in results:
+        conversion = _parse_currency(item["raw_text"])
         if conversion:
-            result["currency_conversion"] = conversion
-    
+            item["currency_conversion"] = conversion
     return {"results": results}
