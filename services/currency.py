@@ -1,6 +1,5 @@
 import requests
 
-
 class NBPService:
     BASE_URL = "http://api.nbp.pl/api/exchangerates/rates/a/"
 
