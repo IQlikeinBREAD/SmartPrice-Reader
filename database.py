@@ -2,7 +2,7 @@ import mysql.connector
 from mysql.connector import errorcode
 
 def get_connection():
-    # Tworzy połączenie z lokalną instancją bazy MySQL o nazwie ocr_cen.
+    #Tworzy połączenie z lokalną instancją bazy MySQL o nazwie ocr_cen
     return mysql.connector.connect(
         host="127.0.0.1",
         user="root",
@@ -11,7 +11,7 @@ def get_connection():
     )
 
 def check_db_connection():
-    # Weryfikuje dostępność serwera MySQL i zwraca status połączenia.
+    #Weryfikuje dostępność serwera MySQL i zwraca status połączenia.
     try:
         conn = get_connection()
         conn.close()
@@ -28,7 +28,7 @@ def check_db_connection():
         return False, msg
 
 def create_tables():
-    # Tworzy tabelę scanned_prices, jeśli nie istnieje ona w bazie danych.
+    #Tworzy tabelę scanned_prices, jeśli nie istnieje ona w bazie danych.
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -54,7 +54,7 @@ def create_tables():
         print("Błąd: " + str(err))
 
 def add_scan_to_db(name, price, image_source):
-    # Konwertuje obraz na bajty i zapisuje go wraz z metadanymi do bazy.
+    #Konwertuje obraz na bajty i zapisuje go wraz z metadanymi do bazy.
     try:
         if isinstance(image_source, str):
             with open(image_source, 'rb') as file:
@@ -85,7 +85,7 @@ def add_scan_to_db(name, price, image_source):
             conn.close()
 
 def get_last_scan():
-    # Pobiera z bazy nazwę oraz dane binarne zdjęcia z ostatniego rekordu.
+    #Pobiera z bazy nazwę oraz dane binarne zdjęcia z ostatniego rekordu.
     try:
         conn = get_connection()
         cursor = conn.cursor()

@@ -78,7 +78,8 @@ def _fetch_exchange_rates() -> Dict[str, Optional[float]]:
     with httpx.Client() as client:
         for currency in CURRENCIES:
             try:
-                response = client.get(f"https://api.nbp.pl/api/exchangerates/rates/a/{currency.lower()}/?format=json", timeout=5)
+                response = client.get(f"https://api.nbp.pl/api/exchangerates/rates/a/{currency.lower()}/?format=json",
+                                      timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                     rates[currency] = data["rates"][0]["mid"]
@@ -104,7 +105,7 @@ def _parse_currency(text_lines: List[str], target: Optional[str] = None):
             conversions = {
                 "original": f"{amount} PLN"
             }
-            
+
             for currency in CURRENCIES:
                 if currency in rates and rates[currency]:
                     rate = rates[currency]
@@ -120,7 +121,7 @@ def _parse_currency(text_lines: List[str], target: Optional[str] = None):
                         "rate": None,
                         "full": "Błąd"
                     }
-            
+
             return conversions
     return None
 

@@ -4,6 +4,7 @@ import logging
 logging.getLogger("easyocr").setLevel(logging.ERROR)
 
 class PriceReader:
+
     def __init__(self, use_gpu=True):
         self.reader = easyocr.Reader(['pl', 'en'], gpu=use_gpu)
 

@@ -1,14 +1,12 @@
 import requests
 
+
 class NBPService:
     BASE_URL = "http://api.nbp.pl/api/exchangerates/rates/a/"
 
     @staticmethod
     def get_exchange_rate(currency_code: str) -> float:
-        """
-        Pobiera aktualny kurs średni dla danej waluty (np. EUR, USD) względem PLN.
-        Zwraca 1.0 dla PLN.
-        """
+
         code = currency_code.upper()
         if code == "PLN":
             return 1.0
@@ -32,26 +30,20 @@ class NBPService:
 
     @staticmethod
     def convert_pln_to_currency(amount_pln: float, target_currency: str) -> float:
-        """
-        Przelicza kwotę w PLN na docelową walutę (GBP, EUR, USD, CHF).
-        """
         code = target_currency.upper()
         if code == "PLN":
             return amount_pln
 
         rate = NBPService.get_exchange_rate(code)
         if rate:
-            # Kurs z NBP to ile PLN za 1 jednostkę waluty obcej
-            # Więc aby przeliczyć PLN na walutę obcą: PLN / kurs
+            #Kurs z NBP to ile PLN za 1 jednostkę waluty obcej
+            #Więc aby przeliczyć PLN na walutę obcą: PLN / kurs
             return round(amount_pln / rate, 2)
         return None
 
     @staticmethod
     def convert_to_multiple_currencies(amount_pln: float, currencies: list = None) -> dict:
-        """
-        Przelicza kwotę w PLN na wiele walut jednocześnie.
-        Domyślnie przelicza na GBP, EUR, USD, CHF.
-        """
+
         if currencies is None:
             currencies = ["GBP", "EUR", "USD", "CHF"]
 
