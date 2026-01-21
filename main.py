@@ -100,22 +100,28 @@ def _parse_currency(text_lines: List[str], target: Optional[str] = None):
             continue
         amount = float(numbers[0])
         if "PLN" in line.upper():
+            # Przelicz na wszystkie waluty z listy CURRENCIES
             conversions = {
-                "original": f"{amount} PLN",
-                "conversions": {}
+                "original": f"{amount} PLN"
             }
             
             for currency in CURRENCIES:
                 if currency in rates and rates[currency]:
-                    converted = amount / rates[currency]
-                    conversions["conversions"][currency] = {
-                        "value": f"{converted:.2f}",
-                        "rate": rates[currency],
-                        "direction": f"PLN → {currency}"
+                    rate = rates[currency]
+                    converted = amount / rate
+                    conversions[currency] = {
+                        "value": round(converted, 2),
+                        "rate": rate,
+                        "full": f"{converted:.2f} {currency}"
+                    }
+                else:
+                    conversions[currency] = {
+                        "value": None,
+                        "rate": None,
+                        "full": "Błąd"
                     }
             
-            if conversions["conversions"]:
-                return conversions
+            return conversions
     return None
 
 
