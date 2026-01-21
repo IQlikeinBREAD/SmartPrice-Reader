@@ -99,16 +99,23 @@ def _parse_currency(text_lines: List[str], target: Optional[str] = None):
         if not numbers:
             continue
         amount = float(numbers[0])
-        if "PLN" in line.upper() and target and target in rates:
-            rate = rates[target]
-            if rate:
-                converted = amount / rate
-                return {
-                    "original": f"{amount} PLN",
-                    "converted": f"{converted:.2f} {target}",
-                    "rate": rate,
-                    "direction": f"PLN → {target}"
-                }
+        if "PLN" in line.upper():
+            conversions = {
+                "original": f"{amount} PLN",
+                "conversions": {}
+            }
+            
+            for currency in CURRENCIES:
+                if currency in rates and rates[currency]:
+                    converted = amount / rates[currency]
+                    conversions["conversions"][currency] = {
+                        "value": f"{converted:.2f}",
+                        "rate": rates[currency],
+                        "direction": f"PLN → {currency}"
+                    }
+            
+            if conversions["conversions"]:
+                return conversions
     return None
 
 
