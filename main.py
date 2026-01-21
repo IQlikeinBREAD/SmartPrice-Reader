@@ -8,7 +8,7 @@ import httpx
 import re
 
 # Inicjalizacja usług (Singleton pattern - ładowane raz przy starcie)
-detector = PriceTagDetector(model_path="yolo11n.pt")  # lub twoja ścieżka
+detector = PriceTagDetector(model_path="custom_price_v1.pt")  # lub twoja ścieżka
 reader = PriceReader()
 app = fastapi.FastAPI()
 

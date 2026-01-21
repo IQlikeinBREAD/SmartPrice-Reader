@@ -1,12 +1,10 @@
 import customtkinter as ctk
-import time
+import cv2
+from PIL import Image, ImageTk
 import threading
-import io
-from PIL import Image
-import database
-from database import check_db_connection, create_tables
-from services.currency import NBPService
+import time
 
+# Import Twoich modułów
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
 from utils.text_utils import clean_price
@@ -18,203 +16,187 @@ ctk.set_default_color_theme("blue")
 class OCRApp(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.title("Price Reader - Moduł OCR")
+        self.geometry("1100x700")
 
-        self.title("OCR Cenówek - Analizator Ceny")
-        self.geometry("1000x600")
-        self.minsize(800, 500)
+        # 1. Inicjalizacja Twoich modeli (w tle, żeby GUI nie zamarzło)
+        self.detector = None
+        self.reader = None
+        self.camera = None
+        self.is_running = True
 
-        is_connected, message = check_db_connection()
+        # Ładowanie modeli w osobnym wątku
+        threading.Thread(target=self.load_models, daemon=True).start()
 
-        if not is_connected:
-            self.show_loading_screen()
-            self.after(0, lambda: self.loading_label.configure(text=message, text_color="red"))
-            return
-
-        database.create_tables()
-        self.show_loading_screen()
-        threading.Thread(target=self.initialize_data, daemon=True).start()
-
-    def show_loading_screen(self):
-        self.loading_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.loading_frame.place(relx=0.5, rely=0.5, anchor="center")
-
-        self.loading_label = ctk.CTkLabel(
-            self.loading_frame,
-            text="Trwa pobieranie kursów walut...",
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        self.loading_label.pack(pady=10)
-
-        self.progress_bar = ctk.CTkProgressBar(self.loading_frame, orientation="horizontal", width=300)
-        self.progress_bar.pack(pady=10)
-        self.progress_bar.set(0)
-
-    def initialize_data(self):
-        min_duration = 2.0
-        steps = 40
-        delay = min_duration / steps
-
-        time.sleep(0.5)
-
-        for i in range(steps):
-            time.sleep(delay)
-            current_progress = (i + 1) / steps
-            self.after(0, lambda val=current_progress: self.progress_bar.set(val))
-
-        self.after(100, self.launch_main_ui)
-
-    def launch_main_ui(self):
-        if hasattr(self, 'loading_frame'):
-            self.loading_frame.destroy()
+        # UI Layout
         self.create_layout()
 
+        # Start kamery
+        self.start_camera()
+
+    def load_models(self):
+        # Tutaj ładujemy Twoje ciężkie modele AI
+        try:
+            # UPEWNIJ SIĘ, ŻE ŚCIEŻKA DO MODELU JEST DOBRA!
+            self.detector = PriceTagDetector(model_path='models/yolo/custom_price_v1.pt')
+            self.reader = PriceReader(use_gpu=False)
+            print("✅ Modele załadowane pomyślnie!")
+
+            # Zamiast bezpośrednio konfigurować, używamy .after()
+            self.after(0, lambda: self.status_label.configure(
+                text="System gotowy. Wyceluj w cenę.",
+                text_color="green"
+            ))
+
+        except Exception as e:
+            print(f"Błąd ładowania modeli: {e}")
+            # Tu również używamy .after() dla błędu
+            self.after(0, lambda: self.status_label.configure(
+                text=f"Błąd modeli: {e}",
+                text_color="red"
+            ))
+
     def create_layout(self):
-        self.grid_columnconfigure(0, weight=2)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=3)  # Lewa strona (Kamera) szersza
+        self.grid_columnconfigure(1, weight=1)  # Prawa strona (Panel)
         self.grid_rowconfigure(0, weight=1)
 
-        #Miejsce na kamere
-        self.frame_camera_feed = ctk.CTkFrame(self)
-        self.frame_camera_feed.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        self.frame_camera_feed.grid_columnconfigure(0, weight=1)
-        self.frame_camera_feed.grid_rowconfigure(0, weight=1)
+        # --- LEWA STRONA: KAMERA ---
+        self.frame_camera = ctk.CTkFrame(self)
+        self.frame_camera.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        self.camera_label = ctk.CTkLabel(
-            self.frame_camera_feed,
-            text="PODGLĄD KAMERY\n(Miejsce na obraz z OpenCV)",
-            text_color="gray",
-            fg_color=("gray80", "gray20"),
-            font=ctk.CTkFont(size=18, weight="bold")
+        self.camera_label = ctk.CTkLabel(self.frame_camera, text="Uruchamianie kamery...", text_color="white")
+        self.camera_label.pack(expand=True, fill="both", padx=5, pady=5)
+
+        # --- PRAWA STRONA: PANEL STEROWANIA ---
+        self.frame_controls = ctk.CTkFrame(self)
+        self.frame_controls.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+
+        # Nagłówek
+        ctk.CTkLabel(self.frame_controls, text="PANEL OCR", font=("Arial", 20, "bold")).pack(pady=20)
+
+        # Status
+        self.status_label = ctk.CTkLabel(self.frame_controls, text="Ładowanie modeli...", text_color="orange")
+        self.status_label.pack(pady=10)
+
+        # Przycisk SKANUJ (Wielki i widoczny)
+        self.btn_scan = ctk.CTkButton(
+            self.frame_controls,
+            text="📸 SKANUJ CENĘ",
+            command=self.process_current_frame,
+            height=60,
+            font=("Arial", 18, "bold"),
+            fg_color="green",
+            hover_color="darkgreen"
         )
-        self.camera_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        self.btn_scan.pack(pady=40, padx=20, fill="x")
 
-        #Prawy layout
-        self.frame_data = ctk.CTkFrame(self)
-        self.frame_data.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="nsew")
-        self.frame_data.grid_columnconfigure(0, weight=1)
-        self.frame_data.grid_rowconfigure(2, weight=1)
+        # Pole wyników (Tu pojawi się cena dla kolegi)
+        ctk.CTkLabel(self.frame_controls, text="Wykryta Cena (PLN):").pack(anchor="w", padx=20)
+        self.result_box = ctk.CTkEntry(self.frame_controls, font=("Arial", 30, "bold"), justify="center")
+        self.result_box.pack(pady=5, padx=20, fill="x")
 
-        data_label = ctk.CTkLabel(
-            self.frame_data,
-            text="Wyniki OCR i Tabela Walut",
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        data_label.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="nw")
+        # Logi tekstowe (co widzi OCR)
+        ctk.CTkLabel(self.frame_controls, text="Szczegóły (Raw Text):").pack(anchor="w", padx=20, pady=(20, 0))
+        self.log_box = ctk.CTkTextbox(self.frame_controls, height=150)
+        self.log_box.pack(pady=5, padx=20, fill="x")
 
-        #Lista walut do wyboru
-        self.currency_var = ctk.StringVar(value="Waluta 1")
-
-        currency_frame = ctk.CTkFrame(self.frame_data, fg_color="transparent")
-        currency_frame.grid(row=1, column=0, padx=20, pady=(5, 5), sticky="ew")
-        currency_frame.grid_columnconfigure(0, weight=1)
-
-        self.currency_dropdown = ctk.CTkOptionMenu(
-            currency_frame,
-            variable=self.currency_var,
-            values=["GBP", "EUR", "USD", "CHF"]
-        )
-        self.currency_dropdown.grid(row=0, column=0, padx=(0, 10), sticky="ew")
-
-        self.convert_button = ctk.CTkButton(
-            currency_frame,
-            text="Konwertuj",
-            command=self.convert_currency,
-            width=120
-        )
-        self.convert_button.grid(row=0, column=1)
-
-        #Miejsce do wyswietlania wynikow
-        self.text_results = ctk.CTkTextbox(self.frame_data, width=300)
-        self.text_results.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
-
-        #Przycisk ostatniego skanu
-        self.btn_history = ctk.CTkButton(
-            self.frame_data,
-            text="Historia",
-            command=self.show_history_window,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            height=40
-        )
-        self.btn_history.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="ew")
-
-    def convert_currency(self):
-        selected_currency = self.currency_var.get()
-        self.text_results.delete("1.0", "end")
-        
-        # Pobierz odczytaną cenę z GUI (przykładowa wartość - należy zastąpić rzeczywistą logiką)
-        # Zakładamy, że cena jest zapisana w self.detected_price lub można ją pobrać z OCR
-        # Na potrzeby demonstracji używam przykładowej wartości
-        try:
-            # Przykładowa cena w PLN - w prawdziwej implementacji pobierz z OCR
-            price_pln = 99.99  # TODO: Zastąp rzeczywistą odczytaną ceną
-            
-            self.text_results.insert("end", f"Odczytana cena: {price_pln} PLN\n\n")
-            self.text_results.insert("end", "Przeliczanie na inne waluty...\n")
-            self.text_results.insert("end", "-" * 40 + "\n\n")
-            
-            # Przelicz na wszystkie waluty
-            converted = NBPService.convert_to_multiple_currencies(price_pln)
-            
-            for currency, amount in converted.items():
-                if isinstance(amount, (int, float)):
-                    self.text_results.insert("end", f"{currency}: {amount:.2f}\n")
-                else:
-                    self.text_results.insert("end", f"{currency}: {amount}\n")
-            
-            # Wyróżnij wybraną walutę
-            if selected_currency != "PLN":
-                self.text_results.insert("end", "\n" + "=" * 40 + "\n")
-                self.text_results.insert("end", f"Wybrana waluta: {selected_currency}\n")
-                if selected_currency in converted:
-                    amount = converted[selected_currency]
-                    if isinstance(amount, (int, float)):
-                        self.text_results.insert("end", f"Cena: {amount:.2f} {selected_currency}\n")
-                    else:
-                        self.text_results.insert("end", f"Cena: {amount}\n")
-                        
-        except Exception as e:
-            self.text_results.insert("end", f"Błąd podczas przeliczania: {str(e)}\n")
-
-    def show_history_window(self):
-        result = database.get_last_scan()
-
-        if not result:
-            self.text_results.insert("end", "\n[!] Brak wpisów w historii.")
+    def start_camera(self):
+        # Otwieramy kamerę 0 (domyślna w laptopie/USB)
+        self.camera = cv2.VideoCapture(0)
+        if not self.camera.isOpened():
+            self.camera_label.configure(text="Błąd: Nie wykryto kamery!")
             return
 
-        product_name, image_data = result
+        # Rozpoczynamy pętlę odświeżania obrazu
+        self.update_camera_feed()
 
-        history_win = ctk.CTkToplevel(self)
-        history_win.title("Ostatni skan: " + str(product_name))
-        history_win.geometry("500x550")
-        history_win.attributes('-topmost', True)
+    def update_camera_feed(self):
+        if self.is_running:
+            ret, frame = self.camera.read()
+            if ret:
+                # 1. Konwersja kolorów BGR (OpenCV) -> RGB (Tkinter)
+                self.current_frame = frame  # Zapisujemy klatkę do obróbki
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        try:
-            img = Image.open(io.BytesIO(image_data))
-            orig_w, orig_h = img.size
-            scale = min(450 / orig_w, 450 / orig_h)
-            new_size = (int(orig_w * scale), int(orig_h * scale))
+                # 2. Tworzenie obrazka dla GUI
+                img = Image.fromarray(frame_rgb)
 
-            img_ctk = ctk.CTkImage(light_image=img, dark_image=img, size=new_size)
+                # Skalowanie do okna (opcjonalne, żeby nie rozpychało GUI)
+                img_tk = ctk.CTkImage(light_image=img, dark_image=img, size=(640, 480))
 
-            img_label = ctk.CTkLabel(history_win, image=img_ctk, text="")
-            img_label.pack(pady=10)
+                self.camera_label.configure(image=img_tk, text="")
 
-            name_label = ctk.CTkLabel(
-                history_win,
-                text="Produkt: " + str(product_name),
-                font=("Arial", 16, "bold")
-            )
-            name_label.pack(pady=10)
+            # Odśwież co 10 milisekund
+            self.after(10, self.update_camera_feed)
 
-        except Exception as e:
-            error_label = ctk.CTkLabel(
-                history_win,
-                text="Błąd ładowania obrazu:\n" + str(e)
-            )
-            error_label.pack(pady=20)
+    def process_current_frame(self):
+        """
+        To jest serce programu. Uruchamia się po kliknięciu przycisku.
+        1. Bierze klatkę.
+        2. YOLO wycina cenówkę.
+        3. OCR czyta.
+        4. Zwraca cenę.
+        """
+        if self.detector is None or self.reader is None:
+            self.status_label.configure(text="Modele jeszcze nie gotowe!", text_color="red")
+            return
+
+        if not hasattr(self, 'current_frame'):
+            return
+
+        frame = self.current_frame.copy()
+        self.status_label.configure(text="Analizowanie...", text_color="blue")
+        self.update()  # Wymuś odświeżenie UI
+
+        # 1. DETEKCJA (YOLO)
+        bboxes = self.detector.detect(frame)
+
+        if not bboxes:
+            self.status_label.configure(text="❌ Nie znaleziono cenówki!", text_color="red")
+            self.log_box.delete("1.0", "end")
+            self.log_box.insert("end", "Brak detekcji YOLO.")
+            return
+
+        # Bierzemy pierwszą znalezioną cenówkę (zakładamy, że celujesz w jedną)
+        x1, y1, x2, y2 = bboxes[0]
+
+        # Rysujemy ramkę na podglądzie (opcjonalnie, dla efektu)
+        # cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+
+        # 2. WYCIĘCIE (CROP)
+        crop = frame[y1:y2, x1:x2]
+
+        # 3. CZYTANIE (OCR)
+        raw_texts = self.reader.read_text(crop)
+
+        # Wyświetl surowe teksty w logach
+        self.log_box.delete("1.0", "end")
+        self.log_box.insert("end", f"OCR widzi: {raw_texts}")
+
+        # 4. OCZYSZCZANIE (Logika 3 49 -> 3.49)
+        price = clean_price(raw_texts)
+
+        if price:
+            self.result_box.delete(0, "end")
+            self.result_box.insert(0, str(price))
+            self.status_label.configure(text="✅ Sukces!", text_color="green")
+
+            # TU PRZEKAZUJESZ WYNIK KOLEDZE:
+            print(f"--- PRZEKAZANO DO API WALUTOWEGO: {price} ---")
+        else:
+            self.status_label.configure(text="⚠️ Widzę cenówkę, ale nie widzę ceny", text_color="orange")
+            self.result_box.delete(0, "end")
+            self.result_box.insert(0, "???")
+
+    def on_closing(self):
+        self.is_running = False
+        if self.camera:
+            self.camera.release()
+        self.destroy()
 
 
 if __name__ == "__main__":
     app = OCRApp()
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
