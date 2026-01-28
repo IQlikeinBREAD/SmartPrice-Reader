@@ -36,8 +36,6 @@ class NBPService:
 
         rate = NBPService.get_exchange_rate(code)
         if rate:
-            #Kurs z NBP to ile PLN za 1 jednostkę waluty obcej
-            #Więc aby przeliczyć PLN na walutę obcą: PLN / kurs
             return round(amount_pln / rate, 2)
         return None
 
