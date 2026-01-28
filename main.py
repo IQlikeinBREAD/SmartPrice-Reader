@@ -1,4 +1,3 @@
-# main.py (fragment)
 import fastapi
 from fastapi import UploadFile, File, HTTPException
 from services.detector import PriceTagDetector
@@ -10,7 +9,6 @@ import httpx
 import re
 from typing import Dict, List, Optional
 
-# Inicjalizacja usług (Singleton pattern - ładowane raz przy starcie)
 detector = PriceTagDetector(model_path="models/yolo/custom_price_v1.pt")
 reader = PriceReader(use_gpu=False)
 app = fastapi.FastAPI()
@@ -101,7 +99,6 @@ def _parse_currency(text_lines: List[str], target: Optional[str] = None):
             continue
         amount = float(numbers[0])
         if "PLN" in line.upper():
-            # Przelicz na wszystkie waluty z listy CURRENCIES
             conversions = {
                 "original": f"{amount} PLN"
             }

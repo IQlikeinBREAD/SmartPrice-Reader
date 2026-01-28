@@ -3,7 +3,6 @@ import cv2
 from PIL import Image, ImageTk
 from main import _fetch_exchange_rates
 
-#Import modulow OCR
 from services.detector import PriceTagDetector
 from services.reader import PriceReader
 from utils.text_utils import clean_price
@@ -32,7 +31,6 @@ class OCRApp(ctk.CTk):
         self.load_models()
         self.start_camera()
 
-    #Modele
     def load_models(self):
         try:
             self.status_label.configure(text="Ładowanie modeli...", text_color="orange")
@@ -47,15 +45,12 @@ class OCRApp(ctk.CTk):
             self.status_label.configure(text=f"Błąd modeli: {e}", text_color="red")
             print(e)
 
-    #GUI
     def create_layout(self):
-        #LEWA STRONA – KAMERA
         self.frame_camera = ctk.CTkFrame(self)
         self.frame_camera.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         self.camera_label = ctk.CTkLabel(self.frame_camera, text="Uruchamianie kamery...")
         self.camera_label.pack(expand=True, fill="both")
 
-        #PRAWA STRONA – PANEL OCR
         self.frame_controls = ctk.CTkFrame(self)
         self.frame_controls.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
 
@@ -64,7 +59,6 @@ class OCRApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.frame_controls, text="Ładowanie modeli...", text_color="orange")
         self.status_label.pack(pady=10)
 
-        #Przycisk SKANUJ CENĘ
         self.btn_scan = ctk.CTkButton(
             self.frame_controls,
             text="📸 SKANUJ CENĘ",
@@ -76,7 +70,6 @@ class OCRApp(ctk.CTk):
         )
         self.btn_scan.pack(pady=20, padx=20, fill="x")
 
-        #Przycisk pokaż ostatni obraz
         self.btn_show_last = ctk.CTkButton(
             self.frame_controls,
             text="Pokaż ostatni obraz",
@@ -88,23 +81,19 @@ class OCRApp(ctk.CTk):
         )
         self.btn_show_last.pack(pady=10, padx=20, fill="x")
 
-        #Pole wyników
         ctk.CTkLabel(self.frame_controls, text="Wykryta Cena (PLN):").pack(anchor="w", padx=20)
         self.result_box = ctk.CTkEntry(self.frame_controls, font=("Arial", 30, "bold"), justify="center")
         self.result_box.pack(pady=5, padx=20, fill="x")
 
-        #Waluty
         ctk.CTkLabel(self.frame_controls, text="Cena w innych walutach:").pack(anchor="w", padx=20, pady=(20, 0))
         self.currency_box = ctk.CTkTextbox(self.frame_controls, height=120)
         self.currency_box.pack(pady=5, padx=20, fill="x")
         self.currency_box.configure(state="disabled")
 
-        #Logi OCR
         ctk.CTkLabel(self.frame_controls, text="Szczegóły OCR:").pack(anchor="w", padx=20, pady=(20, 0))
         self.log_box = ctk.CTkTextbox(self.frame_controls, height=150)
         self.log_box.pack(pady=5, padx=20, fill="x")
 
-    #Kamera
     def start_camera(self):
         self.camera = cv2.VideoCapture(0)
         if not self.camera.isOpened():
@@ -117,10 +106,8 @@ class OCRApp(ctk.CTk):
             return
         ret, frame = self.camera.read()
         if ret:
-            #Oryginał do OCR
             self.current_frame = frame.copy()
 
-            #Lustrzany podgląd
             frame_display = cv2.flip(frame, 1)
             frame_rgb = cv2.cvtColor(frame_display, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame_rgb)
@@ -142,7 +129,6 @@ class OCRApp(ctk.CTk):
 
         frame = self.current_frame.copy()
 
-        #DETEKCJA YOLO
         bboxes = self.detector.detect(frame)
         if not bboxes:
             self.status_label.configure(text="Nie znaleziono cenówki", text_color="red")
@@ -153,16 +139,12 @@ class OCRApp(ctk.CTk):
         x1, y1, x2, y2 = bboxes[0]
         crop = frame[y1:y2, x1:x2]
 
-        #OCR
         raw_texts = self.reader.read_text(crop)
         self.log_box.delete("1.0", "end")
         self.log_box.insert("end", str(raw_texts))
 
-        #OCZYSZCZANIE CENY
         price = clean_price(raw_texts)
 
-        #Wyswietlanie walut z API NBP
-        #EXCHANGE_RATES = {"EUR": 4.75, "USD": 4.40, "CHF": 4.80, "GBP": 5.35}
         EXCHANGE_RATES = _fetch_exchange_rates()
 
         if price:
@@ -171,7 +153,6 @@ class OCRApp(ctk.CTk):
             self.status_label.configure(text="Sukces!", text_color="green")
             print(f"PRZEKAZANO DO API WALUTOWEGO: {price}")
 
-            #Waluty
             self.currency_box.configure(state="normal")
             self.currency_box.delete("1.0", "end")
             for curr, rate in EXCHANGE_RATES.items():
@@ -179,7 +160,6 @@ class OCRApp(ctk.CTk):
                 self.currency_box.insert("end", f"{curr}: {converted:.2f}\n")
             self.currency_box.configure(state="disabled")
 
-            #Zapis do bazy
             try:
                 from database import add_scan_to_db
                 success, encoded_image = cv2.imencode('.png', crop)
@@ -195,7 +175,6 @@ class OCRApp(ctk.CTk):
             self.result_box.insert(0, "???")
             self.status_label.configure(text="Brak poprawnej ceny", text_color="orange")
 
-    #Ostatni obraz zapisany w bazie
     def show_last_image(self):
         try:
             from database import get_last_scan
